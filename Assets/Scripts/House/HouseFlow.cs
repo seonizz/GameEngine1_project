@@ -66,6 +66,7 @@ namespace Majungbul.House
         bool _skip, _twist, _lanternLit, _fireLit, _photoFound, _childCalled;
         float _stun, _fireLeft;
         int _knockIndex, _opened;
+        HouseProp _knockTarget;
         bool _knockActive;
 
         // ───────────────────────── 시작 ─────────────────────────
@@ -90,6 +91,7 @@ namespace Majungbul.House
             _map.TryMarker('X', out _exit);
             _map.TryMarker('Y', out _kickout);
 
+            ui.BuildMinimap(_map, MiniColor);
             child.StepsPerSecond = childStepsPerSecond;
             child.SetSeat(_seat);
             if (cam != null) cam.SetBounds(_map.Width, _map.Height);
@@ -209,6 +211,7 @@ namespace Majungbul.House
             var target = Get(KnockOrder[_knockIndex]);
             if (target == null) return;
             _knockActive = true;
+            _knockTarget = target;
 
             // 그것이 바깥에 서서 아이를 들여다본다(나를 보는 게 아니다: 반전 복선)
             watcher.gameObject.SetActive(true);
@@ -436,6 +439,7 @@ namespace Majungbul.House
                 _skip = true;
 
             ui.SetPrompt(PlayerCanAct ? PromptFor(player.Cell + Dir4Util.Delta(player.Facing)) : "");
+            UpdateMinimap();
             if (ui.Busy) return;
             if (Phase == HousePhase.Day3) UpdateChase();
             else if (Phase == HousePhase.After) UpdateFire();
@@ -536,6 +540,53 @@ namespace Majungbul.House
             if (!child.GoTo(trunk.Cell, () => OnChildArrived(trunk))) return;
             _childCalled = true;
             ui.SetGoal("아이가 상자를 찾을 때까지 기다리자");
+        }
+
+        // ───────────────────────── 미니맵 ─────────────────────────
+
+        static readonly Color MiniWall = new Color(0.16f, 0.15f, 0.14f), MiniFloor = new Color(0.62f, 0.56f, 0.46f),
+            MiniYard = new Color(0.20f, 0.30f, 0.20f), MiniFurniture = new Color(0.40f, 0.34f, 0.28f),
+            MiniDoor = new Color(0.70f, 0.42f, 0.18f), MiniWindow = new Color(0.45f, 0.62f, 0.78f),
+            MiniPlayer = new Color(0.80f, 0.90f, 1f), MiniChild = new Color(1f, 0.70f, 0.35f), MiniGoal = new Color(1f, 0.25f, 0.2f);
+
+        Color MiniColor(Cell c)
+        {
+            char t = _map.TileAt(c);
+            if (t == '#' || t == ' ') return MiniWall;
+            if (t == 'w') return MiniWindow;
+            if (t == 'D' || t == 'E') return MiniDoor;
+            if (t == 'O') return new Color(0.95f, 0.55f, 0.2f);
+            if (t == 'S' || blockingChars.IndexOf(t) >= 0) return MiniFurniture;
+            return t == ',' || "GVXY".IndexOf(t) >= 0 ? MiniYard : MiniFloor;
+        }
+
+        void UpdateMinimap()
+        {
+            if (Phase == HousePhase.Ending) { for (int i = 0; i < 3; i++) ui.SetMinimapDot(i, false, default(Cell), Color.clear); return; }
+            ui.SetMinimapDot(0, true, player.Cell, MiniPlayer);
+            ui.SetMinimapDot(1, child.gameObject.activeSelf, child.Cell, MiniChild);
+            Cell goal;
+            ui.SetMinimapDot(2, TryObjective(out goal), goal, MiniGoal, true);   // 쫓아오는 그것은 표시하지 않는다
+        }
+
+        /// <summary>지금 가야 할 곳. 첫날(탐색)과 문밖에서는 표시하지 않는다.</summary>
+        bool TryObjective(out Cell c)
+        {
+            c = default(Cell);
+            switch (Phase)
+            {
+                case HousePhase.Day2:
+                    if (_knockActive && _knockTarget != null) { c = _knockTarget.Cell; return true; }
+                    return false;
+                case HousePhase.Day3:
+                    if (_altar == null) return false;
+                    c = _altar.Cell; return true;
+                case HousePhase.After:
+                    if (_lanternLit) { c = _exit; return true; }
+                    if (!_childCalled && _trunk != null) { c = _trunk.Cell; return true; }
+                    return false;
+            }
+            return false;
         }
 
         string PromptFor(Cell front)
@@ -677,6 +728,7 @@ namespace Majungbul.House
             _doorOpen[door] = open;
             _map.SetBlocked(door.Cell, !open);
             door.SetVisualActive(!open);
+            ui.SetMinimapCell(door.Cell, open ? MiniFloor : MiniDoor);
         }
 
         bool IsOpen(HouseProp door) => door != null && _doorOpen.TryGetValue(door, out var o) && o;

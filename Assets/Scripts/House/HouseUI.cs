@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using Majungbul.Core;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
@@ -20,6 +21,11 @@ namespace Majungbul.House
         Font _font;
         GameObject _msgBox, _choiceBox, _ending, _photo;
         Image _photoFace, _photoBody;
+        GameObject _miniHolder;
+        RawImage _mini;
+        Texture2D _miniTex;
+        readonly Image[] _dots = new Image[3];
+        const float MiniScale = 5f;            // 지도 한 칸 = 화면 5px(1280×720 기준)
         Text _promptText, _msgText, _goalText, _captionText, _choiceQuote, _endTitle, _endLine;
         Text[] _choiceItems = new Text[2];
         Image _black;
@@ -57,7 +63,7 @@ namespace Majungbul.House
             var root = canvasGo.transform;
 
             _goalText = Label(root, "", 18, TextAnchor.UpperLeft, Dim, new Vector2(0, 1), new Vector2(0.7f, 1), new Vector2(24, -60), new Vector2(0, -18));
-            Label(root, "방향키 이동   Shift 달리기   E 조사   R 처음부터", 13, TextAnchor.UpperRight, new Color(1, 1, 1, 0.25f),
+            Label(root, "방향키 이동   Shift 달리기   E 조사   M 지도   R 처음부터", 13, TextAnchor.UpperRight, new Color(1, 1, 1, 0.25f),
                 new Vector2(0.4f, 1), new Vector2(1, 1), new Vector2(0, -40), new Vector2(-20, -16));
 
             // 사진 클로즈업(반전 장면). 회색 박스 단계라 액자·인물을 사각형으로 그린다.
@@ -70,6 +76,19 @@ namespace Majungbul.House
             var face = Node(paper.transform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(-45, 115), new Vector2(45, 215));
             _photoFace = face.AddComponent<Image>();
             _photo.SetActive(false);
+
+            // 미니맵 자리(내용은 BuildMinimap에서 채운다). 검은 화면·결말보다 먼저 만들어 그 아래에 그려지게 한다.
+            _miniHolder = Node(root, new Vector2(1, 1), new Vector2(1, 1), new Vector2(-20, -48), new Vector2(-20, -48));
+            _mini = _miniHolder.AddComponent<RawImage>();
+            _mini.color = new Color(1f, 1f, 1f, 0.85f);
+            _mini.raycastTarget = false;
+            for (int i = 0; i < _dots.Length; i++)
+            {
+                _dots[i] = Node(_miniHolder.transform, Vector2.zero, Vector2.zero, Vector2.zero, Vector2.zero).AddComponent<Image>();
+                _dots[i].raycastTarget = false;
+                _dots[i].gameObject.SetActive(false);
+            }
+            _miniHolder.SetActive(false);
 
             // 앞 칸 안내(E로 할 수 있는 일)
             _promptText = Label(root, "", 18, TextAnchor.LowerCenter, Ink, new Vector2(0.3f, 0), new Vector2(0.7f, 0), new Vector2(0, 30), new Vector2(0, 60));
@@ -109,6 +128,45 @@ namespace Majungbul.House
         // ───────────────────────── 공개 API ─────────────────────────
 
         public void SetGoal(string goal) => _goalText.text = goal ?? "";
+
+        /// <summary>지도 한 칸을 한 픽셀로 그린 미니맵을 만든다(오른쪽 위). M으로 켜고 끈다.</summary>
+        public void BuildMinimap(GridMap map, Func<Cell, Color> colorFor)
+        {
+            _miniTex = new Texture2D(map.Width, map.Height, TextureFormat.RGBA32, false);
+            _miniTex.filterMode = FilterMode.Point;
+            for (int y = 0; y < map.Height; y++)
+                for (int x = 0; x < map.Width; x++)
+                    _miniTex.SetPixel(x, y, colorFor(new Cell(x, y)));
+            _miniTex.Apply();
+            _mini.texture = _miniTex;
+            var rt = (RectTransform)_miniHolder.transform;
+            rt.offsetMin = new Vector2(-20 - map.Width * MiniScale, -48 - map.Height * MiniScale);
+            rt.offsetMax = new Vector2(-20, -48);
+            _miniHolder.SetActive(true);
+        }
+
+        public void SetMinimapCell(Cell c, Color color)
+        {
+            if (_miniTex == null) return;
+            _miniTex.SetPixel(c.X, c.Y, color);
+            _miniTex.Apply();
+        }
+
+        /// <summary>미니맵 점. 0 주인공, 1 아이, 2 목표(깜빡임).</summary>
+        public void SetMinimapDot(int index, bool show, Cell c, Color color, bool blink = false)
+        {
+            if (_miniTex == null || index < 0 || index >= _dots.Length) return;
+            var dot = _dots[index];
+            dot.gameObject.SetActive(show);
+            if (!show) return;
+            if (blink) color.a *= 0.35f + 0.65f * Mathf.Abs(Mathf.Sin(Time.unscaledTime * 4f));
+            dot.color = color;
+            var center = new Vector2((c.X + 0.5f) * MiniScale, (c.Y + 0.5f) * MiniScale);
+            float r = index == 2 ? 5f : 4f;
+            var drt = (RectTransform)dot.transform;
+            drt.offsetMin = center - new Vector2(r, r);
+            drt.offsetMax = center + new Vector2(r, r);
+        }
 
         public void SetPrompt(string text)
         {
@@ -207,8 +265,9 @@ namespace Majungbul.House
 
         void Update()
         {
-            if (!MessageOpen && !ChoiceOpen) return;
             var kb = Keyboard.current;
+            if (kb != null && kb.mKey.wasPressedThisFrame && _miniTex != null) _miniHolder.SetActive(!_miniHolder.activeSelf);
+            if (!MessageOpen && !ChoiceOpen) return;
             if (kb == null) return;
 
             bool confirmHeld = kb.eKey.isPressed || kb.spaceKey.isPressed || kb.enterKey.isPressed;
