@@ -41,3 +41,9 @@ TestResults*.xml
 # OS
 .DS_Store
 Thumbs.db
+
+# tools/ 검증 도구 빌드 산출물(tools/verify/verify.sh 가 bin/ 에 만든다)
+/tools/**/[Bb]in/
+/tools/**/[Oo]bj/
+/tools/**/*.dll
+/tools/**/*.exe

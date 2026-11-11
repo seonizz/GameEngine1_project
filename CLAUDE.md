@@ -44,6 +44,8 @@
   "C:/Program Files/Unity/Hub/Editor/6000.6.0f1/Editor/Unity.exe" -batchmode -projectPath . -runTests -testPlatform EditMode -testResults TestResults.xml -logFile -
   ```
   `-quit`은 붙이지 않는다. Editor를 닫을 수 없으면 사용자에게 Test Runner 결과를 요청한다.
+- Unity 없이 하는 확인: `bash tools/verify/verify.sh`(Linux·WSL, `sudo apt-get install -y mono-mcs` 필요). Core 컴파일과 CoreTests.cs 실행(NUnit 대체 shim), House 스크립트·씬 빌더의 Unity 스텁 대상 타입 검사, 지도 검사(모든 소품 도달, 첫날 아이가 듣는 소리 수, 둘째 날 노크 대상), 지도 생성기 비교를 하고 실패하면 종료 코드 1로 끝난다. 이 통과는 Unity Test Runner 통과를 대신하지 않는다.
+- 지도는 `tools/mapgen/gen.py`에서 고친다. `python3 tools/mapgen/gen.py --cs` 출력을 `HouseSceneBuilder.cs`의 `Map`에 붙여 넣고, `--check`로 일치를 확인한 뒤 Unity에서 `Majungbul ▸ Build House Prototype`으로 씬을 다시 만든다.
 - `docs/gdd-v2.md` 검증 기준 표의 각 행은 테스트 또는 수동 확인 절차에 대응하고, 상태를 "예정 / 확인 완료 / 수정 필요"로 표시한다. 하지 않은 테스트를 완료로 쓰지 않는다.
 
 ## 작업 방식
