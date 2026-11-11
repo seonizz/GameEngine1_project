@@ -453,9 +453,10 @@ namespace Majungbul.House
 
             if (Phase == HousePhase.After && !_lanternLit && watcher.gameObject.activeSelf && front == watcher.Cell)
             {
-                ui.Choose("“그 불은, 내 아이가 켠 거야.”", "비켜선다", "그대로 있는다", pick =>
+                // 첫 항목이 기본값이자 Esc의 결과다. 결말을 확정하는 "비켜선다"는 둘째에 둔다.
+                ui.Choose("“그 불은, 내 아이가 켠 거야.”", "그대로 있는다", "비켜선다", pick =>
                 {
-                    if (pick == 0) StartCoroutine(StepAside());
+                    if (pick == 1) StartCoroutine(StepAside());
                 });
                 return;
             }
